@@ -1,37 +1,26 @@
 @echo off
 setlocal
 rem OCR PDF Converter - Windows launcher.
-rem Builds its own Python environment inside this folder on first run,
-rem then starts the converter. Nothing is installed system-wide.
+rem
+rem First run: sets everything up, including Tesseract and Poppler. After that
+rem it just starts. Everything except Tesseract lives inside this folder, so
+rem deleting the folder removes it all.
 
 cd /d "%~dp0"
 
-where py >nul 2>nul
-if errorlevel 1 (
-    where python >nul 2>nul
-    if errorlevel 1 (
-        echo.
-        echo Python was not found.
-        echo   Install it:  winget install -e --id Python.Python.3.12
-        echo.
-        pause
-        exit /b 1
-    )
-    set "PY=python"
-) else (
-    set "PY=py -3"
-)
+if not exist ".venv-win\Scripts\python.exe" goto :setup
+if not exist "tools\poppler" goto :setup
+goto :run
 
-if not exist ".venv-win\Scripts\python.exe" (
-    echo Creating the Python environment ^(first run only^)...
-    %PY% -m venv ".venv-win"
-    if errorlevel 1 goto :failed
-    ".venv-win\Scripts\python.exe" -m pip install --upgrade pip --quiet
-    echo Installing packages...
-    ".venv-win\Scripts\python.exe" -m pip install -r requirements.txt --quiet
-    if errorlevel 1 goto :failed
-)
+:setup
+echo.
+echo Setting up. This happens once and takes a few minutes.
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1"
+if errorlevel 1 goto :failed
+if not exist ".venv-win\Scripts\python.exe" goto :failed
 
+:run
 ".venv-win\Scripts\python.exe" "ocr_batch_pro.py"
 echo.
 pause
@@ -39,7 +28,8 @@ exit /b 0
 
 :failed
 echo.
-echo Setup failed. See the messages above.
+echo Setup did not finish. Scroll up to see what went wrong.
+echo You can run this file again - it picks up where it left off.
 echo.
 pause
 exit /b 1

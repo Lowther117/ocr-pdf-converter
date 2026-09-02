@@ -34,6 +34,23 @@ IS_MAC = sys.platform == "darwin"
 # inside pytesseract or pdf2image rather than something a person can act on.
 # --------------------------------------------------------------------------- #
 
+# The launcher can download portable copies of these into ./tools rather than
+# installing anything system-wide, so that folder is searched before anything
+# else - a tool sitting next to the script is the one this app was set up with.
+APP_DIR = Path(__file__).resolve().parent
+TOOLS_DIR = APP_DIR / "tools"
+
+
+def _in_tools(exe_name):
+    """First matching executable anywhere under ./tools, or None."""
+    if not TOOLS_DIR.is_dir():
+        return None
+    for found in sorted(TOOLS_DIR.rglob(exe_name)):
+        if found.is_file():
+            return str(found)
+    return None
+
+
 TESSERACT_CANDIDATES = [
     r"C:\Program Files\Tesseract-OCR\tesseract.exe",
     r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
@@ -61,17 +78,19 @@ POPPLER_PATH = None   # passed to pdf2image when the binaries are not on PATH
 
 
 def _find_tesseract():
-    found = shutil.which("tesseract")
-    if found:
-        return found
-    for c in TESSERACT_CANDIDATES:
-        if os.path.isfile(c):
-            return c
-    return None
+    exe = "tesseract.exe" if IS_WINDOWS else "tesseract"
+    return (_in_tools(exe)
+            or shutil.which("tesseract")
+            or next((c for c in TESSERACT_CANDIDATES if os.path.isfile(c)), None))
 
 
 def _find_poppler_bin():
-    """Return the folder holding pdftoppm, or None if it is already on PATH."""
+    """Return the folder holding pdftoppm, None if it is already on PATH, or
+    the string "MISSING" if it cannot be found at all."""
+    exe_name = "pdftoppm.exe" if IS_WINDOWS else "pdftoppm"
+    local = _in_tools(exe_name)
+    if local:
+        return os.path.dirname(local)
     if shutil.which("pdftoppm") or shutil.which("pdftoppm.exe"):
         return None
     exe = "pdftoppm.exe" if IS_WINDOWS else "pdftoppm"

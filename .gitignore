@@ -7,3 +7,6 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# downloaded on first run by the launcher - not source
+tools/

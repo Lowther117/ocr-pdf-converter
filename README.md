@@ -6,51 +6,46 @@ optional image cleanup to improve accuracy on poor-quality scans.
 Runs on **Windows and macOS** (and Linux). Point it at some PDFs, pick a folder,
 and it works through them one at a time.
 
-## What you need
+## Setting it up
 
-**Python 3.9 or newer.** The launcher builds its own environment inside this
-folder and installs the Python packages into it. Nothing is installed
-system-wide.
+**Windows** — double-click `run.bat`
+**macOS** — double-click `run.command`
+
+That is the whole setup. The first run installs everything the converter needs
+and then starts it; every run after that just starts it. Expect a few minutes
+the first time.
+
+You need **Python** on the machine first — that is the one thing a double-click
+cannot arrange for itself:
 
 - Windows: `winget install -e --id Python.Python.3.12`
 - macOS: `brew install python`
 
-Two programs also have to be installed separately, because they are not Python
-packages — **Tesseract** does the actual character recognition, and **Poppler**
-turns each PDF page into an image for Tesseract to read.
+### What the first run actually does
 
-**Windows**
+So there are no surprises:
 
-```
-winget install -e --id UB-Mannheim.TesseractOCR
-```
+| | Windows | macOS |
+|---|---|---|
+| Python packages | into `.venv-win\` in this folder | into `.venv-mac/` in this folder |
+| Poppler | portable copy downloaded into `tools\` | `brew install poppler` |
+| Tesseract OCR | `winget install UB-Mannheim.TesseractOCR` | `brew install tesseract` |
 
-Poppler has no installer. Download the latest zip from
-[poppler-windows releases](https://github.com/oschwartz10612/poppler-windows/releases)
-and unzip it to `C:\Program Files\` — a folder like `poppler-26.02.0` is what
-you want, and the converter finds it there by itself. You do not need to touch
-PATH.
+On Windows only Tesseract is installed properly — it has no portable build — so
+you get one permission prompt for it. Poppler is just unzipped into this folder,
+and the converter looks there before anywhere else. Nothing touches your PATH.
 
-**macOS**
+On macOS both come from Homebrew. If Homebrew isn't installed the launcher stops
+and gives you the one line to paste, rather than installing it behind your back —
+that needs an administrator password and should be your decision.
 
-```
-brew install tesseract poppler
-```
+Deleting this folder removes everything except Tesseract on Windows, which
+uninstalls from Settings like any other program.
 
-If either is missing, the converter says which one and gives you the command,
-rather than failing with something cryptic part-way through a batch.
+On macOS the first double-click may be refused because the file came from the
+internet: right-click → Open and confirm once, or run `chmod +x run.command`.
 
-## Running it
-
-- **Windows** — double-click `run.bat`
-- **macOS** — double-click `run.command`
-
-The first run takes a minute longer while the environment is built. On macOS the
-first double-click may be refused because the file came from the internet:
-right-click → Open and confirm once, or run
-`chmod +x run.command` in Terminal.
-
-Then:
+## Using it
 
 1. A file dialog opens — pick one or more PDFs.
 2. A second dialog asks where the output should go.
@@ -90,10 +85,12 @@ pinning it to the taskbar or Start menu does the same job.
 
 ## When something goes wrong
 
-**"Tesseract OCR was not found" / "Poppler was not found"** — install the one it
-names, using the command above, then run it again. On Windows, if you unzipped
-poppler somewhere other than `C:\Program Files\`, move it there or add its
-`Library\bin` folder to PATH.
+**"Tesseract OCR was not found" / "Poppler was not found"** — the setup step
+didn't complete. Run the launcher again; it resumes where it left off. On
+Windows this usually means the Tesseract permission prompt was declined. To do
+it by hand: `winget install -e --id UB-Mannheim.TesseractOCR`, and for Poppler,
+unzip a [release](https://github.com/oschwartz10612/poppler-windows/releases)
+into the `tools\poppler` folder beside `run.bat`.
 
 **A page comes out as `[No text detected]`** — usually a blank page, or an image
 with no readable text. If the whole document does it, try turning cleanup off:
