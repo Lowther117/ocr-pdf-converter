@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """
 OCR PDF Converter - Batch Processing
-Cross-platform CLI with native file dialogs and batch PDF to Word/TXT/Pages conversion
+
+Batch-converts scanned PDFs to Word (.docx) or plain text (.txt) using OCR.
+Runs on macOS, Windows and Linux: file pickers come from Tk (bundled with
+Python), and the two external binaries - Tesseract and Poppler - are located
+per platform at start-up rather than assumed to be on PATH.
 """
 
 import pdf2image
@@ -10,13 +14,123 @@ import cv2
 import numpy as np
 from PIL import Image
 import os
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 from docx import Document
-from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-import sys
-import traceback
+
+IS_WINDOWS = sys.platform.startswith("win")
+IS_MAC = sys.platform == "darwin"
+
+
+# --------------------------------------------------------------------------- #
+# Locating the two external binaries.
+#
+# On macOS and Linux a package manager puts these on PATH. On Windows the
+# installers do not touch PATH by default, so the usual install locations are
+# checked explicitly - otherwise the failure is an opaque error from deep
+# inside pytesseract or pdf2image rather than something a person can act on.
+# --------------------------------------------------------------------------- #
+
+TESSERACT_CANDIDATES = [
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    "/opt/homebrew/bin/tesseract",
+    "/usr/local/bin/tesseract",
+    "/usr/bin/tesseract",
+]
+
+# The Windows poppler build unzips to a version-stamped folder such as
+# "poppler-26.02.0", so the Windows locations are globbed rather than listed.
+POPPLER_BIN_GLOBS = [
+    r"C:\Program Files\poppler*\Library\bin",
+    r"C:\Program Files\poppler*\bin",
+    r"C:\poppler*\Library\bin",
+    r"C:\poppler*\bin",
+]
+
+POPPLER_BIN_CANDIDATES = [
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    "/usr/bin",
+]
+
+POPPLER_PATH = None   # passed to pdf2image when the binaries are not on PATH
+
+
+def _find_tesseract():
+    found = shutil.which("tesseract")
+    if found:
+        return found
+    for c in TESSERACT_CANDIDATES:
+        if os.path.isfile(c):
+            return c
+    return None
+
+
+def _find_poppler_bin():
+    """Return the folder holding pdftoppm, or None if it is already on PATH."""
+    if shutil.which("pdftoppm") or shutil.which("pdftoppm.exe"):
+        return None
+    exe = "pdftoppm.exe" if IS_WINDOWS else "pdftoppm"
+    candidates = list(POPPLER_BIN_CANDIDATES)
+    if IS_WINDOWS:
+        import glob
+        for pattern in POPPLER_BIN_GLOBS:
+            candidates = sorted(glob.glob(pattern), reverse=True) + candidates
+    for d in candidates:
+        if os.path.isfile(os.path.join(d, exe)):
+            return d
+    return "MISSING"
+
+
+def check_dependencies():
+    """Fail early, with an instruction the person can actually follow."""
+    global POPPLER_PATH
+    problems = []
+
+    tess = _find_tesseract()
+    if tess:
+        pytesseract.pytesseract.tesseract_cmd = tess
+    else:
+        if IS_WINDOWS:
+            problems.append(
+                "Tesseract OCR was not found.\n"
+                "    Install it:  winget install -e --id UB-Mannheim.TesseractOCR\n"
+                "    (or download the installer from "
+                "https://github.com/UB-Mannheim/tesseract/wiki)")
+        elif IS_MAC:
+            problems.append("Tesseract OCR was not found.\n"
+                            "    Install it:  brew install tesseract")
+        else:
+            problems.append("Tesseract OCR was not found.\n"
+                            "    Install it:  sudo apt install tesseract-ocr")
+
+    poppler = _find_poppler_bin()
+    if poppler == "MISSING":
+        if IS_WINDOWS:
+            problems.append(
+                "Poppler was not found (needed to turn PDF pages into images).\n"
+                "    Download the latest release from "
+                "https://github.com/oschwartz10612/poppler-windows/releases\n"
+                "    and unzip it to C:\\Program Files\\poppler")
+        elif IS_MAC:
+            problems.append("Poppler was not found.\n"
+                            "    Install it:  brew install poppler")
+        else:
+            problems.append("Poppler was not found.\n"
+                            "    Install it:  sudo apt install poppler-utils")
+    else:
+        POPPLER_PATH = poppler   # None means "already on PATH"
+
+    if problems:
+        print("\nMissing requirements:\n")
+        for p in problems:
+            print("  - " + p + "\n")
+        return False
+    return True
 
 
 class OCRConverter:
@@ -65,7 +179,10 @@ class OCRConverter:
         """Extract text from PDF."""
         try:
             print(f"  📄 Loading: {Path(pdf_path).name}")
-            images = pdf2image.convert_from_path(pdf_path, dpi=300, fmt='ppm')
+            kw = {'dpi': 300, 'fmt': 'ppm'}
+            if POPPLER_PATH:
+                kw['poppler_path'] = POPPLER_PATH
+            images = pdf2image.convert_from_path(pdf_path, **kw)
             total_pages = len(images)
             print(f"  ✓ {total_pages} pages")
 
@@ -150,32 +267,81 @@ class OCRConverter:
             return self.save_as_txt(pdf_path, output_dir, extracted_pages)
 
 
+# --------------------------------------------------------------------------- #
+# File pickers.
+#
+# Tk ships with Python on every platform, so one dialog implementation works
+# everywhere. If Tk is genuinely unavailable (a stripped Linux Python, a
+# headless session) the prompts fall back to typed paths rather than failing.
+# --------------------------------------------------------------------------- #
+
+def _tk_root():
+    """A hidden Tk root, or None if Tk cannot start here."""
+    try:
+        import tkinter as tk
+        root = tk.Tk()
+        root.withdraw()
+        root.update()
+        try:
+            root.attributes("-topmost", True)   # dialogs above the console
+        except Exception:
+            pass
+        return root
+    except Exception:
+        return None
+
+
 def pick_pdfs():
-    """Use native macOS file dialog to pick PDF(s)."""
-    script = '''
-    set pdf_files to (choose file of type {"com.adobe.pdf"} with prompt "Select PDF file(s):" with multiple selections allowed)
-    set result to {}
-    repeat with pdf_file in pdf_files
-        set end of result to (POSIX path of pdf_file)
-    end repeat
-    return result
-    '''
-    result = subprocess.run(['osascript', '-e', script], capture_output=True, text=True)
-    if result.returncode == 0:
-        return result.stdout.strip().split('\n')
-    return []
+    """Pick one or more PDFs. Returns a list of paths (empty if cancelled)."""
+    root = _tk_root()
+    if root is not None:
+        try:
+            from tkinter import filedialog
+            chosen = filedialog.askopenfilenames(
+                title="Select PDF file(s)",
+                filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")],
+            )
+            return list(chosen)
+        finally:
+            root.destroy()
+
+    typed = input("  Path to a PDF (or a folder of PDFs): ").strip().strip('"\'')
+    if not typed:
+        return []
+    path = Path(typed).expanduser()
+    if path.is_dir():
+        return [str(f) for f in sorted(path.glob("*.pdf"))]
+    return [str(path)] if path.is_file() else []
 
 
 def pick_output_folder():
-    """Use native macOS file dialog to pick output folder."""
-    script = '''
-    set output_folder to (choose folder with prompt "Select output folder:")
-    POSIX path of output_folder
-    '''
-    result = subprocess.run(['osascript', '-e', script], capture_output=True, text=True)
-    if result.returncode == 0:
-        return result.stdout.strip()
-    return str(Path.home() / 'Downloads')
+    """Pick the output folder. Defaults to Downloads if cancelled."""
+    default = str(Path.home() / "Downloads")
+    root = _tk_root()
+    if root is not None:
+        try:
+            from tkinter import filedialog
+            chosen = filedialog.askdirectory(title="Select output folder")
+            return chosen or default
+        finally:
+            root.destroy()
+
+    typed = input(f"  Output folder (Enter for {default}): ").strip().strip('"\'')
+    return str(Path(typed).expanduser()) if typed else default
+
+
+def open_folder(path):
+    """Reveal a folder in the platform's file manager."""
+    try:
+        if IS_WINDOWS:
+            os.startfile(path)                              # noqa: S606
+        elif IS_MAC:
+            subprocess.run(["open", path], check=False)
+        else:
+            subprocess.run(["xdg-open", path], check=False)
+    except Exception as e:
+        print(f"  Could not open the folder automatically ({e}).")
+        print(f"  It is here: {path}")
 
 
 def main():
@@ -183,6 +349,10 @@ def main():
     print("\n" + "="*70)
     print("  OCR PDF Converter (Batch Processing)")
     print("="*70 + "\n")
+
+    if not check_dependencies():
+        print("=" * 70 + "\n")
+        return
 
     # Pick PDFs
     print("📁 Select PDF file(s)...")
@@ -250,7 +420,7 @@ def main():
         # Ask to open results
         open_choice = input("Open output folder? (y/n): ").strip().lower()
         if open_choice == 'y':
-            subprocess.run(['open', output_dir])
+            open_folder(output_dir)
     else:
         print("❌ No files converted")
 

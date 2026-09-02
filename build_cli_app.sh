@@ -12,10 +12,11 @@ BUNDLE="/Applications/OCR PDF Converter.app"
 MACOS="$BUNDLE/Contents/MacOS"
 RESOURCES="$BUNDLE/Contents/Resources"
 
-# Find source file
-SOURCE="$HOME/Downloads/OCR App/ocr_batch_pro.py"
+# Source lives next to this script, wherever the repo was cloned.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+SOURCE="$HERE/ocr_batch_pro.py"
 if [ ! -f "$SOURCE" ]; then
-    echo "❌ Error: ocr_batch_pro.py not found at $SOURCE"
+    echo "❌ Error: ocr_batch_pro.py not found next to this script ($HERE)"
     exit 1
 fi
 
@@ -50,7 +51,7 @@ source "$VENV/bin/activate"
 
 echo "📥 Installing dependencies..."
 pip install --upgrade pip --quiet
-pip install pdf2image pytesseract python-docx pillow opencv-python numpy --quiet
+pip install -r "$HERE/requirements.txt" --quiet
 
 # Simple launcher - opens Terminal to run script
 cat > "$MACOS/OCR PDF Converter" << 'LAUNCHER'

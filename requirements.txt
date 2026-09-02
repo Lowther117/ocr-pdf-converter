@@ -1,0 +1,13 @@
+# OCR PDF Converter - Python packages
+#
+# Two external programs are NOT installed by pip and must be present as well:
+#   Tesseract OCR  - reads the text off the page
+#   Poppler        - turns PDF pages into images for Tesseract to read
+# See README.md for the per-platform install commands.
+
+pdf2image>=1.16.0
+pytesseract>=0.3.10
+opencv-python-headless>=4.8.0
+numpy>=1.24.0
+pillow>=10.0.0
+python-docx>=1.1.0

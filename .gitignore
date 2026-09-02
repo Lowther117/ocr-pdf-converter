@@ -1,4 +1,9 @@
+# machine-specific - each computer builds its own
 .venv/
-*.pyc
+.venv-win/
+.venv-mac/
+
+# noise
 __pycache__/
+*.pyc
 .DS_Store
