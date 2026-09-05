@@ -54,6 +54,8 @@ def _in_tools(exe_name):
 TESSERACT_CANDIDATES = [
     r"C:\Program Files\Tesseract-OCR\tesseract.exe",
     r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    os.path.join(os.environ.get("LOCALAPPDATA", ""),
+                 "Programs", "Tesseract-OCR", "tesseract.exe"),
     "/opt/homebrew/bin/tesseract",
     "/usr/local/bin/tesseract",
     "/usr/bin/tesseract",

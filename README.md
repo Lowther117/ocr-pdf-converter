@@ -15,11 +15,9 @@ That is the whole setup. The first run installs everything the converter needs
 and then starts it; every run after that just starts it. Expect a few minutes
 the first time.
 
-You need **Python** on the machine first — that is the one thing a double-click
-cannot arrange for itself:
-
-- Windows: `winget install -e --id Python.Python.3.12`
-- macOS: `brew install python`
+On **Windows** even Python takes care of itself: if none is found, the first
+run installs it automatically (winget first, python.org directly when winget
+is unwell). On **macOS** install it once with `brew install python`.
 
 ### What the first run actually does
 

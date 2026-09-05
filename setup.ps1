@@ -73,21 +73,22 @@ Write-Step 'Python environment'
 if (Test-Path $VenvPy) {
     Write-Ok 'Already set up.'
 } else {
-    # Note: build the command and its arguments separately and splat them. An
-    # array slice like $a[1..($a.Length-1)] silently reverses on a one-element
-    # array, which would pass the interpreter its own name as an argument.
-    if (Get-Command py -ErrorAction SilentlyContinue) {
-        $pyCmd = 'py'; $pyArgs = @('-3')
-    } elseif (Get-Command python -ErrorAction SilentlyContinue) {
-        $pyCmd = 'python'; $pyArgs = @()
-    } else {
+    # ensure_python.ps1 finds a REAL interpreter (the py launcher counts, the
+    # Microsoft Store's fake python.exe stub does not) and installs Python
+    # automatically when the PC has none - winget first, python.org directly
+    # when winget is broken. It prints the interpreter path as its last line.
+    $sysPy = (& (Join-Path $PSScriptRoot 'ensure_python.ps1') |
+              Select-Object -Last 1)
+    if (-not $sysPy -or -not (Test-Path "$sysPy")) {
         Write-Host ''
-        Write-Host 'Python was not found.' -ForegroundColor Red
-        Write-Host '  Install it:  winget install -e --id Python.Python.3.12'
+        Write-Host 'Python was not found and could not be installed automatically.' -ForegroundColor Red
+        Write-Host '  Install it from https://www.python.org/downloads/windows/'
+        Write-Host '  (tick "Add python.exe to PATH"), then run this again.'
         exit 1
     }
+    Write-Host "   Using Python: $sysPy"
     Write-Host '   Creating it (first run only)...'
-    & $pyCmd @pyArgs -m venv $VenvDir
+    & "$sysPy" -m venv $VenvDir
     & $VenvPy -m pip install --upgrade pip --quiet
     Write-Host '   Installing packages...'
     & $VenvPy -m pip install -r (Join-Path $PSScriptRoot 'requirements.txt') --quiet
@@ -103,29 +104,76 @@ if (Test-Path $VenvPy) {
 # that gets properly installed. winget shows a UAC prompt; that is expected.
 # --------------------------------------------------------------------------- #
 Write-Step 'Tesseract OCR'
-$tess = Find-Tool 'tesseract.exe' @(
+$tessPaths = @(
     "$env:ProgramFiles\Tesseract-OCR\tesseract.exe",
-    "${env:ProgramFiles(x86)}\Tesseract-OCR\tesseract.exe"
+    "${env:ProgramFiles(x86)}\Tesseract-OCR\tesseract.exe",
+    "$env:LOCALAPPDATA\Programs\Tesseract-OCR\tesseract.exe"
 )
-if ($tess) {
-    Write-Ok "Found: $tess"
-} elseif (Get-Command winget -ErrorAction SilentlyContinue) {
-    Write-Host '   Installing with winget (you may see a permission prompt)...'
-    winget install -e --id UB-Mannheim.TesseractOCR `
-        --accept-package-agreements --accept-source-agreements --disable-interactivity
-    $tess = Find-Tool 'tesseract.exe' @(
-        "$env:ProgramFiles\Tesseract-OCR\tesseract.exe",
-        "${env:ProgramFiles(x86)}\Tesseract-OCR\tesseract.exe"
-    )
-    if ($tess) { Write-Ok "Installed: $tess" }
-    else {
-        Write-Warn 'winget finished but Tesseract still is not where expected.'
-        Write-Warn 'If you were asked to approve it and declined, run this again.'
+$tess = Find-Tool 'tesseract.exe' $tessPaths
+
+# Route 1: winget - quick when it works, but on some PCs its source update
+# fails (403), so a failure here is expected and handled, not fatal.
+if (-not $tess -and (Get-Command winget -ErrorAction SilentlyContinue)) {
+    Write-Host '   Trying winget (you may see a permission prompt)...'
+    try {
+        winget install -e --id UB-Mannheim.TesseractOCR `
+            --accept-package-agreements --accept-source-agreements --disable-interactivity
+    } catch { }
+    $tess = Find-Tool 'tesseract.exe' $tessPaths
+    if (-not $tess) {
+        Write-Warn 'winget did not produce Tesseract - fetching the installer directly.'
     }
+}
+
+# Route 2: the UB-Mannheim installer, downloaded directly - immune to winget
+# being broken. Runs silently; Windows may show one permission prompt.
+if (-not $tess) {
+    $exe = Join-Path $env:TEMP 'tesseract-setup.exe'
+    $got = $false
+    try {
+        Write-Host '   Asking GitHub for the current Tesseract installer...'
+        $release = Invoke-RestMethod `
+            -Uri 'https://api.github.com/repos/UB-Mannheim/tesseract/releases/latest' `
+            -Headers @{ 'User-Agent' = 'ocr-pdf-converter-setup' }
+        $asset = $release.assets |
+            Where-Object { $_.name -like 'tesseract-ocr-w64-setup-*.exe' } |
+            Select-Object -First 1
+        if ($asset) {
+            $mb = [math]::Round($asset.size / 1MB, 1)
+            Write-Host "   Downloading $($asset.name) ($mb MB)..."
+            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $exe -UseBasicParsing
+            $got = $true
+        }
+    } catch { }
+    if (-not $got) {
+        try {
+            Write-Host '   Downloading Tesseract from the UB-Mannheim mirror...'
+            Invoke-WebRequest -OutFile $exe -UseBasicParsing -Uri `
+                'https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-5.4.0.20240606.exe'
+            $got = $true
+        } catch {
+            Write-Warn "Could not download the installer: $($_.Exception.Message)"
+        }
+    }
+    if ($got) {
+        Write-Host '   Installing (silent - approve the permission prompt if one appears)...'
+        try {
+            Start-Process -FilePath $exe -ArgumentList '/S' -Wait
+        } catch {
+            Write-Warn "The installer did not finish: $($_.Exception.Message)"
+        }
+        Remove-Item $exe -Force -ErrorAction SilentlyContinue
+        $tess = Find-Tool 'tesseract.exe' $tessPaths
+    }
+}
+
+if ($tess) {
+    Write-Ok "Ready: $tess"
 } else {
-    Write-Warn 'winget is not available on this PC.'
-    Write-Warn 'Install Tesseract by hand from:'
+    Write-Warn 'Tesseract could not be installed automatically.'
+    Write-Warn 'Install it by hand from:'
     Write-Warn '  https://github.com/UB-Mannheim/tesseract/wiki'
+    Write-Warn 'then run this again.'
 }
 
 
