@@ -1,0 +1,27 @@
+# machine-specific - each computer builds its own
+.venv/
+.venv-win/
+.venv-mac/
+
+# noise
+__pycache__/
+*.pyc
+.DS_Store
+
+# downloaded on first run by the launcher - not source
+tools/
+
+# optional standalone builds (build-exe.bat / build-app.command)
+.venv-build/
+.venv-build-mac/
+build/
+dist/
+*.spec
+
+# build logs, self-test reports and the remembered dark/light choice
+ocr-settings.json
+build-win-log.txt
+build-mac-log.txt
+ocr-selftest.txt
+ocr-startup-error.txt
+ocr-error.txt
