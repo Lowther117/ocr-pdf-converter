@@ -346,6 +346,17 @@ class OCRConverter:
         self.denoise_strength = denoise_strength
         self.threshold_value = threshold_value
         self.last_error = None   # why the most recent file failed, for the summary
+        self._written = set()    # output paths already used in this run
+
+    def _output_path(self, output_dir, pdf_name, ext):
+        """Two PDFs with the same name from different folders must not share
+        one output file - the second used to overwrite the first silently."""
+        candidate = os.path.join(output_dir, f"{pdf_name}_OCR{ext}")
+        n = 2
+        while os.path.normcase(candidate) in self._written:
+            candidate = os.path.join(output_dir, f"{pdf_name}_OCR ({n}){ext}")
+            n += 1
+        return candidate
 
     def preprocess_image(self, image):
         """Apply denoise and threshold to image."""
@@ -414,7 +425,8 @@ class OCRConverter:
                     text = pytesseract.image_to_string(image)
                     extracted_pages.append({
                         'page_num': page_num,
-                        'text': text.strip() if text else "[No text detected]"
+                        # a blank page comes back as whitespace and a form feed
+                        'text': (text or "").strip() or "[No text detected]"
                     })
                     print(f"  ✓ page {page_num}/{total_pages}", flush=True)
                 except Exception as e:
@@ -466,8 +478,9 @@ class OCRConverter:
                 for block in blocks or [text]:
                     doc.add_paragraph(block)
 
-            output_file = os.path.join(output_dir, f"{pdf_name}_OCR.docx")
+            output_file = self._output_path(output_dir, pdf_name, ".docx")
             doc.save(output_file)
+            self._written.add(os.path.normcase(output_file))
             return output_file
         except Exception as e:
             self.last_error = f"could not save the Word file - {e}"
@@ -478,7 +491,7 @@ class OCRConverter:
         """Save as plain text."""
         try:
             pdf_name = Path(pdf_path).stem
-            output_file = os.path.join(output_dir, f"{pdf_name}_OCR.txt")
+            output_file = self._output_path(output_dir, pdf_name, ".txt")
 
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(f"OCR Conversion: {pdf_name}\n")
@@ -490,6 +503,7 @@ class OCRConverter:
                     f.write(page_data['text'])
                     f.write("\n\n")
 
+            self._written.add(os.path.normcase(output_file))
             return output_file
         except Exception as e:
             self.last_error = f"could not save the text file - {e}"
@@ -710,7 +724,9 @@ def pick_pdfs():
         return []
     path = Path(typed).expanduser()
     if path.is_dir():
-        return [str(f) for f in sorted(path.glob("*.pdf"))]
+        # not glob("*.pdf"): that is case-sensitive, and scanners write ".PDF"
+        return [str(f) for f in sorted(path.iterdir())
+                if f.is_file() and f.suffix.lower() == ".pdf"]
     return [str(path)] if path.is_file() else []
 
 

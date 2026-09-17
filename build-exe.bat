@@ -140,7 +140,7 @@ if exist "%HERE%dist\ocr-selftest.txt" (
 
 echo.
 if "%RC%"=="0" (
-    echo Done: %EXE%
+    echo Done: dist\OCR PDF Converter.exe
     echo.
     echo Copy it anywhere - it needs nothing installed on the PC that runs it.
     echo The first launch takes a few seconds while it unpacks itself.

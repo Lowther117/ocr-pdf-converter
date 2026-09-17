@@ -66,7 +66,9 @@ internet: right-click → Open and confirm once, or run `chmod +x run.command`.
 3. Choose Word (`.docx`) or plain text (`.txt`).
 4. Choose whether to clean up the images first (see below).
 
-Each PDF produces one file named after it, with `_OCR` appended.
+Each PDF produces one file named after it, with `_OCR` appended. Two PDFs with
+the same name picked in one run get `_OCR` and `_OCR (2)`; a file left by an
+earlier run is replaced.
 
 The dialogs are dark by default. **Ctrl+D** in any of them switches to light
 (and back); the choice is remembered in `ocr-settings.json` beside the app.

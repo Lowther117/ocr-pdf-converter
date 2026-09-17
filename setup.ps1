@@ -99,7 +99,12 @@ if ($ToolsOnly) {
     & $VenvPy -m pip install --upgrade pip --quiet
     Write-Host '   Installing packages...'
     & $VenvPy -m pip install -r (Join-Path $PSScriptRoot 'requirements.txt') --quiet
-    if ($LASTEXITCODE -ne 0) { throw 'pip install failed.' }
+    if ($LASTEXITCODE -ne 0) {
+        # Leave no half-made environment behind: its python.exe alone makes the
+        # next run say 'Already set up' and the converter then dies on import.
+        Remove-Item -LiteralPath $VenvDir -Recurse -Force -ErrorAction SilentlyContinue
+        throw 'pip install failed.'
+    }
     Write-Ok 'Done.'
 }
 
