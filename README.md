@@ -51,8 +51,10 @@ On macOS both come from Homebrew. If Homebrew isn't installed the launcher stops
 and gives you the one line to paste, rather than installing it behind your back —
 that needs an administrator password and should be your decision.
 
-Deleting this folder removes everything except Tesseract on Windows, which
-uninstalls from Settings like any other program.
+Deleting this folder removes everything except what was installed outside it:
+Tesseract on Windows, which uninstalls from Settings like any other program,
+and on macOS the Homebrew copies of Tesseract and Poppler
+(`brew uninstall tesseract poppler`).
 
 On macOS the first double-click may be refused because the file came from the
 internet: right-click → Open and confirm once, or run `chmod +x run.command`.
