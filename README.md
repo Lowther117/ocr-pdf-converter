@@ -64,16 +64,23 @@ internet: right-click → Open and confirm once, or run `chmod +x run.command`.
 1. A file dialog opens — pick one or more PDFs.
 2. A second dialog asks where to save. It starts in `OCR Output` inside your
    Downloads folder; pick somewhere else and you are asked whether to make
-   that the default from now on (remembered in `ocr-settings.json`).
+   that the default from now on (remembered in `ocr-settings.json`). Say no and
+   you are not asked again about that same folder.
 3. Choose Word (`.docx`) or plain text (`.txt`).
 4. Choose whether to clean up the images first (see below).
 
 Each PDF produces one file named after it, with `_OCR` appended. Two PDFs with
-the same name picked in one run get `_OCR` and `_OCR (2)`; a file left by an
-earlier run is replaced.
+the same name picked in one run get `_OCR` and `_OCR (2)` (names that differ
+only in upper/lower case count as the same); a file left by an earlier run is
+replaced, unless it is open in Word, in which case the new one is saved as
+`_OCR (2)` instead. A page that takes over two minutes to render or read is
+marked `[OCR timed out]` and the rest of the document carries on.
 
-The dialogs use the Phosphor purple theme by default (the same look as Winnow).
-**Ctrl+D** in any of them cycles Phosphor → Dark → Light; the choice is remembered in `ocr-settings.json` beside the app.
+The app's own question windows use the Phosphor purple theme by default (the same
+look as Winnow). **Ctrl+D** in one of them cycles Phosphor → Dark → Light; the
+choice is remembered in `ocr-settings.json` beside the app. The file pickers and
+yes/no boxes are the system's native dialogs on Windows and macOS, so they keep
+the system look and ignore Ctrl+D.
 Where the launchers open a Terminal or console, the questions are typed there
 instead and only the file pickers appear.
 

@@ -78,7 +78,19 @@ Write-Step 'Python environment'
 if ($ToolsOnly) {
     Write-Ok 'Skipped - build-exe.bat makes its own build environment.'
 } elseif (Test-Path $VenvPy) {
-    Write-Ok 'Already set up.'
+    # The environment can exist with its packages missing (a first run that
+    # lost its network part-way), so check they import before saying so. The
+    # check writes nothing to stderr, which 'Stop' would turn into an error.
+    & $VenvPy -c "import sys; exec('try:\n import pdf2image, pytesseract, cv2, numpy, PIL, docx\nexcept Exception:\n sys.exit(1)')"
+    if ($LASTEXITCODE -eq 0) {
+        Write-Ok 'Already set up.'
+    } else {
+        Write-Host '   Packages missing - installing...'
+        & $VenvPy -m pip install --upgrade pip --quiet
+        & $VenvPy -m pip install -r (Join-Path $PSScriptRoot 'requirements.txt') --quiet
+        if ($LASTEXITCODE -ne 0) { throw 'pip install failed.' }
+        Write-Ok 'Done.'
+    }
 } else {
     # ensure_python.ps1 finds a REAL interpreter (the py launcher counts, the
     # Microsoft Store's fake python.exe stub does not) and installs Python

@@ -9,6 +9,9 @@ rem deleting the folder removes it all.
 cd /d "%~dp0"
 
 if not exist ".venv-win\Scripts\python.exe" goto :setup
+rem The venv can exist with its packages missing (a first run that lost its
+rem network part-way); without this check setup would never run again.
+".venv-win\Scripts\python.exe" -c "import pdf2image, pytesseract, cv2, numpy, PIL, docx" >nul 2>&1 || goto :setup
 if exist "tools\poppler" goto :tesseract
 rem Poppler already installed elsewhere on this PC? setup.ps1 would only
 rem confirm that, so skip it rather than announce "setting up" every launch.

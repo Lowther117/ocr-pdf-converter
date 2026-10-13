@@ -337,6 +337,17 @@ def check_dependencies():
     return True
 
 
+# One page that Tesseract or Poppler cannot finish in this long is given up on
+# (marked in the output) rather than hanging the whole batch.
+PAGE_TIMEOUT_SECS = 120
+
+
+def _path_key(path):
+    """Compare output paths the way Windows and macOS do: case-insensitively
+    (os.path.normcase only folds case on Windows)."""
+    return os.path.normcase(os.path.abspath(path)).casefold()
+
+
 class OCRConverter:
     """Handles PDF → OCR → Word/TXT/Pages conversion with batch support."""
 
@@ -353,7 +364,7 @@ class OCRConverter:
         one output file - the second used to overwrite the first silently."""
         candidate = os.path.join(output_dir, f"{pdf_name}_OCR{ext}")
         n = 2
-        while os.path.normcase(candidate) in self._written:
+        while _path_key(candidate) in self._written:
             candidate = os.path.join(output_dir, f"{pdf_name}_OCR ({n}){ext}")
             n += 1
         return candidate
@@ -405,7 +416,7 @@ class OCRConverter:
         """
         try:
             print(f"  📄 Loading: {Path(pdf_path).name}")
-            kw = {'dpi': 300, 'fmt': 'ppm'}
+            kw = {'dpi': 300, 'fmt': 'ppm', 'timeout': PAGE_TIMEOUT_SECS}
             if POPPLER_PATH:
                 kw['poppler_path'] = POPPLER_PATH
             info = pdf2image.pdfinfo_from_path(pdf_path, poppler_path=POPPLER_PATH)
@@ -422,7 +433,7 @@ class OCRConverter:
                     page = pdf2image.convert_from_path(
                         pdf_path, first_page=page_num, last_page=page_num, **kw)[0]
                     image = self.preprocess_image(page) if self.preprocess else page
-                    text = pytesseract.image_to_string(image)
+                    text = pytesseract.image_to_string(image, timeout=PAGE_TIMEOUT_SECS)
                     extracted_pages.append({
                         'page_num': page_num,
                         # a blank page comes back as whitespace and a form feed
@@ -435,10 +446,15 @@ class OCRConverter:
                     # tesseract or its language data.
                     failed += 1
                     last_error = e
-                    print(f"  ⚠️  Page {page_num}: {e}")
+                    timed_out = (isinstance(e, pdf2image.exceptions.PDFPopplerTimeoutError)
+                                 or "timeout" in str(e).lower())
+                    if timed_out:
+                        print(f"  ⚠️  Page {page_num}: gave up after {PAGE_TIMEOUT_SECS}s")
+                    else:
+                        print(f"  ⚠️  Page {page_num}: {e}")
                     extracted_pages.append({
                         'page_num': page_num,
-                        'text': f"[OCR failed: {e}]"
+                        'text': "[OCR timed out]" if timed_out else f"[OCR failed: {e}]"
                     })
                 finally:
                     for im in (image, page):
@@ -479,8 +495,21 @@ class OCRConverter:
                     doc.add_paragraph(block)
 
             output_file = self._output_path(output_dir, pdf_name, ".docx")
-            doc.save(output_file)
-            self._written.add(os.path.normcase(output_file))
+            for _attempt in range(20):
+                try:
+                    doc.save(output_file)
+                    break
+                except PermissionError:
+                    # Usually the earlier _OCR.docx is open in Word, which locks
+                    # it. Save beside it as "_OCR (2)" rather than lose the OCR.
+                    self._written.add(_path_key(output_file))
+                    locked = output_file
+                    output_file = self._output_path(output_dir, pdf_name, ".docx")
+                    print(f"  ⚠️  {Path(locked).name} is open or locked - "
+                          f"saving as {Path(output_file).name}")
+            else:
+                raise PermissionError(f"could not write {output_file}")
+            self._written.add(_path_key(output_file))
             return output_file
         except Exception as e:
             self.last_error = f"could not save the Word file - {e}"
@@ -503,7 +532,7 @@ class OCRConverter:
                     f.write(page_data['text'])
                     f.write("\n\n")
 
-            self._written.add(os.path.normcase(output_file))
+            self._written.add(_path_key(output_file))
             return output_file
         except Exception as e:
             self.last_error = f"could not save the text file - {e}"
@@ -708,6 +737,12 @@ def _tk_root():
         return None
 
 
+def _natural_name_key(path):
+    """Case-insensitive natural order: "scan 2" before "Scan 10"."""
+    return [int(bit) if bit.isdecimal() else bit
+            for bit in re.split(r"(\d+)", Path(path).name.casefold())]
+
+
 def pick_pdfs():
     """Pick one or more PDFs. Returns a list of paths (empty if cancelled)."""
     root = _tk_root()
@@ -730,7 +765,7 @@ def pick_pdfs():
     path = Path(typed).expanduser()
     if path.is_dir():
         # not glob("*.pdf"): that is case-sensitive, and scanners write ".PDF"
-        return [str(f) for f in sorted(path.iterdir())
+        return [str(f) for f in sorted(path.iterdir(), key=_natural_name_key)
                 if f.is_file() and f.suffix.lower() == ".pdf"]
     return [str(path)] if path.is_file() else []
 
@@ -787,15 +822,23 @@ def pick_output_folder():
 
 
 def remember_output_folder(output_dir):
-    """Offer to make a folder that is not the current default the default."""
-    if os.path.normcase(os.path.abspath(output_dir)) == \
-            os.path.normcase(os.path.abspath(default_save_dir())):
+    """Offer to make a folder that is not the current default the default.
+    A "no" is remembered for that folder, so picking it again does not ask
+    every time; picking a different folder does ask."""
+    key = _path_key(output_dir)
+    if key == _path_key(default_save_dir()):
+        return
+    declined = SETTINGS.get("declined_save_dir")
+    if declined and _path_key(str(declined)) == key:
         return
     if ask_yes_no("  Use this folder as the default from now on? (y/n, default n): ",
                   "Use this folder as the default from now on?\n\n" + output_dir,
                   default=False):
         SETTINGS["save_dir"] = output_dir
-        _save_settings(SETTINGS)
+        SETTINGS.pop("declined_save_dir", None)
+    else:
+        SETTINGS["declined_save_dir"] = output_dir
+    _save_settings(SETTINGS)
 
 
 def open_folder(path):
@@ -852,13 +895,21 @@ def ask_text(console_prompt, dialog_prompt, default=""):
         root.destroy()
 
 
-def ask_int(console_prompt, dialog_prompt, default):
-    """A number, falling back to the default on anything unreadable."""
+def ask_int(console_prompt, dialog_prompt, default, low=None, high=None):
+    """A number, falling back to the default on anything unreadable and
+    clamped to low..high when those are given."""
     try:
         typed = ask_text(console_prompt, dialog_prompt, "")
-        return int(typed) if typed else default
+        value = int(typed) if typed else default
     except Exception:
         return default
+    if low is not None and value < low:
+        value = low
+    if high is not None and value > high:
+        value = high
+    if typed and str(value) != typed.strip():
+        print(f"  (using {value})")
+    return value
 
 
 def ask_yes_no(console_prompt, dialog_prompt, default=True):
@@ -1057,9 +1108,9 @@ def main(argv=None):
 
     if preprocess:
         denoise = ask_int("  Denoise strength (0-20, default 10): ",
-                          "Denoise strength (0-20, 0 to skip):", 10)
+                          "Denoise strength (0-20, 0 to skip):", 10, 0, 20)
         threshold = ask_int("  Threshold block size (0-50, default 11): ",
-                            "Threshold block size (0-50, 0 to skip):", 11)
+                            "Threshold block size (0-50, 0 to skip):", 11, 0, 50)
 
     # Process files
     print("\n" + "="*70)
