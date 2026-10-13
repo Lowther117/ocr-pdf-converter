@@ -562,7 +562,8 @@ def _save_settings(settings):
 
 
 SETTINGS = _load_settings()
-DARK = bool(SETTINGS.get("dark", True))
+THEME = theme.from_settings(SETTINGS) if theme is not None else "phosphor"   # phosphor purple by default
+DARK = THEME != "light"
 
 # Classic tk widgets take no notice of ttk styles, so each kind is coloured
 # from the palette by hand: option-database entries for widgets not yet made
@@ -656,11 +657,11 @@ def _recolour(widget, c):
 
 
 def _apply_theme(root):
-    """Dark or light, for the root and every window it opens."""
+    """The current theme (phosphor, dark or light), for the root and every window it opens."""
     if theme is None:
         return
     try:
-        c = theme.apply(root, DARK)
+        c = theme.apply(root, THEME)
         for cls, opts in _CLASSIC.items():
             for key, value in opts(c).items():
                 root.option_add("*{}.{}".format(cls, _OPTION_NAMES.get(key, key)), value)
@@ -672,9 +673,13 @@ def _apply_theme(root):
 
 
 def _toggle_theme(event=None):
-    """Ctrl+D in any dialog: switch between dark and light, and remember."""
-    global DARK
-    DARK = not DARK
+    """Ctrl+D in any dialog: next theme (Phosphor -> Dark -> Light), and remember."""
+    global THEME, DARK
+    if theme is None:
+        return
+    THEME = theme.next_theme(THEME)
+    DARK = THEME != "light"
+    SETTINGS["theme"] = THEME
     SETTINGS["dark"] = DARK
     _save_settings(SETTINGS)
     widget = getattr(event, "widget", None)

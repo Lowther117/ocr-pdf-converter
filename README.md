@@ -13,7 +13,7 @@ and it works through them one at a time.
 | `run.bat` | **double-click this** | — | Starts the converter. First run sets everything up: Python, the packages, Tesseract, Poppler. |
 | `run.command` | — | **double-click this** | Starts the converter. First run sets up the packages and installs Tesseract and Poppler with Homebrew. |
 | `ocr_batch_pro.py` | the app itself | the app itself | The whole converter. The launchers run it for you; `python ocr_batch_pro.py selftest` reports what it can see. |
-| `theme.py` | part of the app | part of the app | The dark and light colour schemes for the app's dialogs. Nothing to run. |
+| `theme.py` | part of the app | part of the app | The shared house colour schemes (Phosphor purple, Dark, Light) for the app's dialogs. Nothing to run. |
 | `setup.ps1` | run by `run.bat` | — | The Windows first-run setup. Nothing to click; safe to run again. |
 | `ensure_python.ps1` | run by `setup.ps1` | — | Finds a real Python, or installs one. Nothing to click. |
 | `build-exe.bat` | optional | — | Builds `dist\OCR PDF Converter.exe`, a standalone exe with Tesseract and Poppler inside. |
@@ -72,8 +72,8 @@ Each PDF produces one file named after it, with `_OCR` appended. Two PDFs with
 the same name picked in one run get `_OCR` and `_OCR (2)`; a file left by an
 earlier run is replaced.
 
-The dialogs are dark by default. **Ctrl+D** in any of them switches to light
-(and back); the choice is remembered in `ocr-settings.json` beside the app.
+The dialogs use the Phosphor purple theme by default (the same look as Winnow).
+**Ctrl+D** in any of them cycles Phosphor → Dark → Light; the choice is remembered in `ocr-settings.json` beside the app.
 Where the launchers open a Terminal or console, the questions are typed there
 instead and only the file pickers appear.
 
