@@ -105,7 +105,9 @@ pick_python
 if [ -z "$CHOSEN" ]; then
     echo "   None of the Pythons here can be bundled - adding one with Homebrew."
     echo "   (a Python with its own Tk 8.6; Apple's own /usr/bin/python3 does not qualify.)"
-    if brew_install python python-tk; then
+    # a named version, not plain "python": Homebrew's default moves on, and a
+    # version newer than the list above would install and then not be found
+    if brew_install python@3.14 python-tk@3.14; then
         pick_python
     fi
 fi
@@ -122,7 +124,7 @@ not open.
 
 Install one of these, then run this again:
 
-    brew install python python-tk          (Homebrew - simplest)
+    brew install python@3.14 python-tk@3.14 (Homebrew - simplest)
     https://www.python.org/downloads/macos/ (official installer)
 
 If you already have one somewhere unusual, point this script at it:
