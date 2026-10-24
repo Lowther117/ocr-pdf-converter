@@ -70,6 +70,6 @@ if [ -n "$missing" ]; then
     fi
 fi
 
-"$VENV/bin/python" "ocr_batch_pro.py"
+"$VENV/bin/python" "ocr_batch_pro.py" || true   # under set -e a failed run would skip the pause below
 echo
 read -r -p "Press Return to close." _
