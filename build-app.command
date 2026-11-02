@@ -152,7 +152,7 @@ elif ! "$PY" -c 'import sys' >/dev/null 2>&1; then
     "$CHOSEN" -m venv "$VENV" || fail "could not recreate the build environment"
 fi
 "$PY" -m pip install --upgrade pip --quiet
-"$PY" -m pip install --upgrade --only-binary :all: pyinstaller \
+"$PY" -m pip install --upgrade --only-binary :all: "pyinstaller>=6.11,<7" \
     || fail "could not install PyInstaller"
 
 say "Components to bake in"

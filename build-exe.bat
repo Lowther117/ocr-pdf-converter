@@ -43,7 +43,7 @@ if not exist "%PY%" (
 :haveenv
 echo    Installing PyInstaller...
 "%PY%" -m pip install --upgrade pip --quiet >> "%LOG%" 2>&1
-"%PY%" -m pip install --upgrade --only-binary :all: pyinstaller >> "%LOG%" 2>&1
+"%PY%" -m pip install --upgrade --only-binary :all: "pyinstaller>=6.11,<7" >> "%LOG%" 2>&1
 if errorlevel 1 (
     echo    ERROR: could not install PyInstaller.
     goto :failed
