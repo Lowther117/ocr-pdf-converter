@@ -13,7 +13,7 @@ and it works through them one at a time.
 | `run.bat` | **double-click this** | — | Starts the converter. First run sets everything up: Python, the packages, Tesseract, Poppler. |
 | `run.command` | — | **double-click this** | Starts the converter. First run sets up the packages and installs Tesseract and Poppler with Homebrew. |
 | `ocr_batch_pro.py` | the app itself | the app itself | The whole converter. The launchers run it for you; `python ocr_batch_pro.py selftest` reports what it can see. |
-| `theme.py` | part of the app | part of the app | The shared house colour schemes (Phosphor purple, Dark, Light) for the app's dialogs. Nothing to run. |
+| `theme.py` | part of the app | part of the app | The shared house colour schemes (Phosphor glass, Phosphor purple, Dark, Light) for the app's dialogs. Nothing to run. |
 | `setup.ps1` | run by `run.bat` | — | The Windows first-run setup. Nothing to click; safe to run again. |
 | `ensure_python.ps1` | run by `setup.ps1` | — | Finds a real Python, or installs one. Nothing to click. |
 | `build-exe.bat` | optional | — | Builds `dist\OCR PDF Converter.exe`, a standalone exe with Tesseract and Poppler inside. |
@@ -76,8 +76,8 @@ replaced, unless it is open in Word, in which case the new one is saved as
 `_OCR (2)` instead. A page that takes over two minutes to render or read is
 marked `[OCR timed out]` and the rest of the document carries on.
 
-The app's own question windows use the Phosphor purple theme by default (the same
-look as Winnow). **Ctrl+D** in one of them cycles Phosphor → Dark → Light; the
+The app's own question windows use the Phosphor glass theme by default (the same
+look as the website and Winnow). **Ctrl+D** in one of them cycles Glass → Phosphor → Dark → Light; the
 choice is remembered in `ocr-settings.json` beside the app. The file pickers and
 yes/no boxes are the system's native dialogs on Windows and macOS, so they keep
 the system look and ignore Ctrl+D.

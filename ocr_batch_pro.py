@@ -591,7 +591,7 @@ def _save_settings(settings):
 
 
 SETTINGS = _load_settings()
-THEME = theme.from_settings(SETTINGS) if theme is not None else "phosphor"   # phosphor purple by default
+THEME = theme.from_settings(SETTINGS) if theme is not None else "glass"   # phosphor glass by default
 DARK = THEME != "light"
 
 # Classic tk widgets take no notice of ttk styles, so each kind is coloured
@@ -702,7 +702,7 @@ def _apply_theme(root):
 
 
 def _toggle_theme(event=None):
-    """Ctrl+D in any dialog: next theme (Phosphor -> Dark -> Light), and remember."""
+    """Ctrl+D in any dialog: next theme (Glass -> Phosphor -> Dark -> Light), and remember."""
     global THEME, DARK
     if theme is None:
         return
